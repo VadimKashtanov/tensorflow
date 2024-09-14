@@ -17,6 +17,10 @@ unix_ms_vers_date = lambda ums: datetime.fromtimestamp(
 	int(ums/1000)
 ).strftime('%Y-%m-%d %H:%M:%S')
 
+unix_ms_vers_date_sans_secondes = lambda ums: datetime.fromtimestamp(
+	int(ums/1000)
+).strftime('%Y-%m-%d %H:%M')
+
 ARONDIRE_AU_MODULO_SUPERIEUR = lambda x,mod: (x if x%mod==0 else x-(x%mod)+mod)
 
 millisecondes_a_secondes = lambda t: int(t/1000)
@@ -34,16 +38,17 @@ requette_bitget = lambda de, a, SYMBOLE, d: eval(
 HEURES_PAR_REQUETTE = 100
 
 def DONNEES_BITGET(__HEURES, d):
-	assert d in ('1H', '1m', '15m')
+	assert d in ('1D', '1H', '1m', '15m')
 	print(f"L'intervalle choisie est : {d}")
 	print(f"Demande de {__HEURES} elements de {d}")
 	#
 	HEURES = ARONDIRE_AU_MODULO_SUPERIEUR(__HEURES, HEURES_PAR_REQUETTE)
 	#
 	correspondance_millisecondes = {
-		'1H'  : 60*60*1000,
-		'15m' : 15*60*1000,
-		'1m'  :  1*60*1000
+		'1D'  : 24*60*60*1000,
+		'1H'  :    60*60*1000,
+		'15m' :    15*60*1000,
+		'1m'  :     1*60*1000
 	}
 	#
 	la = time.time()
@@ -77,10 +82,12 @@ def DONNEES_BITGET(__HEURES, d):
 		
 		#	-- print( Status et Temps restant) --
 		pourcent = i*HEURES_PAR_REQUETTE/len(heures_voulues)
-		str_de = unix_ms_vers_date(float(de))
-		str__a = unix_ms_vers_date(float( a))
-		mins_ = '%2s' % str(round((time.time()-depart)/pourcent*(1-pourcent)/60) if pourcent!=0 else 0)
-		secs_ = '%2s' % str(round((time.time()-depart)/pourcent*(1-pourcent)   ) if pourcent!=0 else 0)
+		str_de = unix_ms_vers_date_sans_secondes(float(de))
+		str__a = unix_ms_vers_date_sans_secondes(float( a))
+		mins_ = int((time.time()-depart          )/pourcent*(1-pourcent)/60 if pourcent!=0 else 0)
+		secs_ = int((time.time()-depart-(mins_-1))/pourcent*(1-pourcent)    if pourcent!=0 else 0) % 60
+		mins_ = '%2s' % str(mins_)
+		secs_ = '%2s' % str(secs_)
 		#
 		p = '%4s' % str(round(float(pourcent*100),1))
 		#
@@ -102,22 +109,21 @@ def faire_un_csv(donnees_BTCUSDT):
 	return csv.strip('\n')
 
 def ecrire_le_csv(temporalitée, elements, nom_csv):
-	with open(nom_csv, 'w') as co:
-		co.write(
-			faire_un_csv(
-				DONNEES_BITGET(
-					elements,
-					d=temporalitée
-				)
-			)
+	txt = faire_un_csv(
+		DONNEES_BITGET(
+			elements,
+			d=temporalitée
 		)
+	)
+	with open(nom_csv, 'w') as co:
+		co.write(txt)
 
 if __name__ == "__main__":
 	from sys import argv
 	#
 	temporalitée, elements, nom_csv = argv[1], int(argv[2]), argv[3]
 	#
-	assert temporalitée in ('1H', '15m')
+	assert temporalitée in ('1D', '1H', '15m', '1m')
 	#
 	if temporalitée == '1H' and elements > 28000:
 		print("\033[91mAttention : Bitget a des erreurs dans ces données plus ou moins avant 28000 !\033[0m")

@@ -7,7 +7,7 @@ def btcusdt_1H():
 	date     = 'Date'
 	close    = 'Close'
 	#
-	df = pd.read_csv(fichier)[::-1] #car ce fichier est du plus jeune au plus vieux
+	df = pd.read_csv(fichier).iloc[::-1].reset_index(drop=True) #car ce fichier est du plus jeune au plus vieux
 	print(df)
 	#
 	DEPART = 1
@@ -23,13 +23,17 @@ def btcusdt_15m():
 	date     = 'Date'
 	close    = 'Close'
 	#
-	df = pd.read_csv(fichier)[::-1] #car ce fichier est du plus jeune au plus vieux
+	#	Inverser le fichier
+	#
+	#
+	df = pd.read_csv(fichier).iloc[::-1].reset_index(drop=True) #car ce fichier est du plus jeune au plus vieux
 	print(df)
 	#
 	DEPART = 1
 	#
 	#	Transformations
 	df['Close_change'] = (df['Close']/df['Close'].shift(+1) - 1) * 100
+	df['Volume_change'] = (df['Volume BTC']/df['Volume BTC'].shift(+1) - 1)
 	#
 	return df[DEPART:], close, date
 
@@ -56,7 +60,7 @@ def CAC_40_Données_Historiques():
 	date     = 'Date'
 	close    = 'Dernier'
 	#
-	df = pd.read_csv(fichier)[::-1]
+	df = pd.read_csv(fichier).iloc[::-1].reset_index(drop=True)
 	print(df)
 	#
 	DEPART = 1
