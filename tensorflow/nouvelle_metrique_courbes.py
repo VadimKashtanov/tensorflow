@@ -45,10 +45,8 @@ norme = lambda lst: [0.01*((e-min(lst))/(max(lst)-min(lst))-0.5) for e in lst]
 #	Modèle : X-> Conv1D (? séparé ou des noyeaux ensembre ?) -> FFN -> 3 ou 2 
 
 _l_ = [
-	(ema(l, K=1), -1),
-	(ema(l, K=3), -1), (ema(l, K=3), -2),
-	(ema(l, K=5), -1), (ema(l, K=5), -2), (ema(l, K=5), -3), 
-	(ema(l, K=9), -1), (ema(l, K=9), -2), (ema(l, K=9), -3), (ema(l, K=9), -4),
+	(ema(l, K=1), 1),
+	(ema(l, K=9), 1), (ema(l, K=9), 2), (ema(l, K=9), 3), (ema(l, K=4), 10),
 ]
 
 fig,ax = plt.subplots(len(_l_))
@@ -56,12 +54,12 @@ fig,ax = plt.subplots(len(_l_))
 for k,(e,n) in enumerate(_l_):
 	ax[k].plot(norme(l))
 	ax[k].plot(norme(e))
-	for i in range(T):
-		if i+n>=0:
+	for i in range(10, T):
+		if i-n>=0:
 			ax[k].plot(
 				[i,i],
-				[0, l[i]/e[i+n]-1],
-				('g' if l[i]/e[i+n]-1>0 else 'r')
+				[0, l[i]/e[i-n]-1],
+				('g' if l[i]/e[i-n]-1>0 else 'r')
 			)
 		else:
 			pass

@@ -48,6 +48,8 @@ def DONNEES_BITGET(__HEURES, d):
 		'1D'  : 24*60*60*1000,
 		'1H'  :    60*60*1000,
 		'15m' :    15*60*1000,
+		'5m'  :     5*60*1000,
+		'3m'  :     3*60*1000,
 		'1m'  :     1*60*1000
 	}
 	#
@@ -123,7 +125,7 @@ if __name__ == "__main__":
 	#
 	temporalitée, elements, nom_csv = argv[1], int(argv[2]), argv[3]
 	#
-	assert temporalitée in ('1D', '1H', '15m', '1m')
+	assert temporalitée in ('1D', '1H', '15m', '5m', '3m', '1m')
 	#
 	if temporalitée == '1H' and elements > 28000:
 		print("\033[91mAttention : Bitget a des erreurs dans ces données plus ou moins avant 28000 !\033[0m")
