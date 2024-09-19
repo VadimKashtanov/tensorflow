@@ -20,11 +20,16 @@ from tensorflow.keras.regularizers import l2
 from random import randint, random, shuffle
 from math import log, tanh
 from os import system
+import struct as st
+
+tf_logistique = lambda x: 1/(1+tf.exp(-         x ))
+np_logistique = lambda x: 1/(1+np.exp(-np.array(x)))
+logistique    = lambda x: 1/(1+np.exp(-         x ))
 
 def ema(l,K):
 	e = [l[0]]
 	for a in l[1:]:
-		e.append(e[-1]*(1-K) + K*a)
+		e.append(e[-1]*(1-1/K) + a/K)
 	return e
 
 #	============================================================	#
@@ -166,7 +171,7 @@ def nouvelle_population(P, enfants, population, scores):
 ]<*(T-DEPART)>
 '''
 
-def _entrées_un_model(parametres):
+"""def entrées_un_model(parametres):
 	_I0, _I1, _ema_K0, _ema_K1 = [], [], [], []
 	#
 	for info,nom_info in enumerate(infos):
@@ -177,28 +182,75 @@ def _entrées_un_model(parametres):
 			K0 = parametres[f'{info}_{e}_K0']
 			K1 = parametres[f'{info}_{e}_K1']
 			#
-			_ema_K0 += [ ema(_df_info, K0) ]
-			_ema_K1 += [ ema(_df_info, K1) ]
+			#_ema_K0 += [ ema(_df_info, K0) ]
+			#_ema_K1 += [ ema(_df_info, K1) ]
 			_I0 += [I0]
 			_I1 += [I1]
 	#
+	ret = []
 	for t in range(DEPART, len(df)):
-		yield \
-		[
-			[
-				ema_K0[t - i*I0]  /  ema_K1[t - i*I0*I1] - 1
-			for i in range(N)]
-		for (I0,I1, ema_K0,ema_K1) in zip(_I0,_I1, _ema_K0,_ema_K1)]
+		ret += [\
+				[i
+					[
+						ema_K0[t - i*I0]  /  ema_K1[t - i*I0*I1] - 1
+					for i in range(N)]
+				for (I0,I1, ema_K0,ema_K1) in zip(_I0,_I1, _ema_K0,_ema_K1)]
+		]
+	return ret"""
 
-entrées_un_model = lambda parametres: list(_entrées_un_model(parametres))
+ecrireI = lambda co, i: co.write(st.pack('I', i))
+ecriref = lambda co, f: co.write(st.pack('f'*len(f), *f))
+
+def entrées_un_model(params:list):
+	with open('instructions_rapiditée', 'wb') as co:
+		ecrireI(co, Informations)
+		ecrireI(co, Expertises)
+		ecrireI(co, len(df))
+		ecrireI(co, N)
+		ecrireI(co, DEPART)
+		ecrireI(co, VALIDATION)
+		for i in infos:
+			ecriref(co, df[i])
+		#
+		ecrireI(co, len(params))
+		for m in range(len(params)):
+			for i in range(Informations):
+				for e in range(Expertises):
+					I0 = params[m][f'{i}_{e}_I0']
+					I1 = params[m][f'{i}_{e}_I1']
+					K0 = params[m][f'{i}_{e}_K0']
+					K1 = params[m][f'{i}_{e}_K1']
+					ecrireI(co, K0)
+					ecrireI(co, K1)
+					ecrireI(co, I0)
+					ecrireI(co, I1)
+	#
+	system("./creation_de_données")
+	#
+	_T = (len(df) - DEPART)
+	_len = _T*N*(Informations*Expertises)
+	ret_train = []
+	ret_test  = []
+	for m in range(len(params)):
+		with open(f'X_bloques_par_mdl_{m}_train', 'rb') as co:
+			bins = co.read()
+			arr = st.unpack('f'*_len, bins)
+			arr = np.array(arr).reshape((_T, Informations*Expertises, N))
+			ret_train += [arr]
+		with open(f'X_bloques_par_mdl_{m}_test', 'rb') as co:
+			bins = co.read()
+			arr = st.unpack('f'*_len, bins)
+			arr = np.array(arr).reshape((_T, Informations*Expertises, N))
+			ret_test += [arr]
+	#
+	return ret_train, ret_test
 
 ######################################################
 
-def _sorties_un_model():
-	for t in range(DEPART, len(df)):
-		yield [ df['Close_change'][t+1] if t!=len(df)-1 else 0.0]
-
-sorties_un_model = lambda : list(_sorties_un_model())
+def sorties_un_model():
+	ret_train = np.array( list(df['Close_change'][DEPART+1:T-VALIDATION+1])        )
+	ret_test  = np.array( list(df['Close_change'][         T-VALIDATION+1:T])+[0.0])
+	return ret_train, ret_test
 
 ######################################################
 
@@ -234,12 +286,12 @@ I1 = list(range(MAX_I1))
 
 for inf in range(Informations):
 	for e in range(Expertises):
-		p(f'{inf}_{e}_K0', 1, K0) #K0
-		p(f'{inf}_{e}_K1', 1, K1) #K1
-		p(f'{inf}_{e}_I0', 1, I0) #I0
-		p(f'{inf}_{e}_I1', 1, I1) #I1
-		#p(f'{inf}_{e}_I2', 0, I2)#I2
-		#p(f'{inf}_{e}_n' , 1,  n) #n
+		p(f'{inf}_{e}_K0', 1, K0)	#K0
+		p(f'{inf}_{e}_K1', 1, K1)	#K1
+		p(f'{inf}_{e}_I0', 1, I0)	#I0
+		p(f'{inf}_{e}_I1', 1, I1)	#I1
+#		p(f'{inf}_{e}_I2', 0, I2)	#I2
+#		p(f'{inf}_{e}_n' , 1,  n)	#n
 
 dropout = [0.0, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90]
 
@@ -308,27 +360,14 @@ population = [
 history = []
 
 for année in range(ANNEES:=10):
-	#entrées_un_model
-	pop_X_train, pop_X_test = [None for _ in population], [None for _ in population]
-	pop_Y_train, pop_Y_test = [None for _ in population], [None for _ in population]
-	#
-	for pop, (mdl,params) in enumerate(population):
-		X = entrées_un_model(params)
-		Y = sorties_un_model()
-		#
-		X_train, X_test = X[:-VALIDATION], X[-VALIDATION:]
-		Y_train, Y_test = Y[:-VALIDATION], Y[-VALIDATION:]
-		#
-		X_train, X_test = np.array(X_train), np.array(X_test)
-		Y_train, Y_test = np.array(Y_train), np.array(Y_test)
-		#
-		pop_X_train[pop], pop_X_test[pop] = X_train, X_test
-		pop_Y_train[pop], pop_Y_test[pop] = Y_train, Y_test
+	pop_X_train, pop_X_test = entrées_un_model([params for _,params in population]) #j'ai pas finie le .cu
+	Y_____train, Y_____test = sorties_un_model()		#il faut faire le split train, validation
+	print("[0] Données écrites")					#Y n'est pas *len(pop) tf.const([y0,y1,y2..]) - tf.cont([w])
 	#
 	udm = Union_des_Modèles(population)
 	udm.model.compile(optimizer=Adam(learning_rate=1e-5), loss=custom_confident_loss)
 	#
-	print(pop_X_train.shape, pop_Y_train.shape)
+	print(pop_X_train[0].shape, pop_Y_train[0].shape)
 	loss, accuracy = udm.model.evaluate(pop_X_test, pop_Y_test)
 	print(loss, accuracy)
 	#
