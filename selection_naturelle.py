@@ -47,8 +47,8 @@ def custom_confident_loss(y_true, y_pred):
 	y0 = y_pred[:, 0:1]
 	y1 = y_pred[:, 1:2]
 	#
-	w  = y_true[:, 0:1]
-	yh = y_true[:, 1:2]
+	w  = y_true#[:, 0:1]
+	#yh = y_true[:, 1:2]
 	#
 	y = tf.tanh      (y0)
 	h = tf_logistique(y1)
@@ -56,8 +56,8 @@ def custom_confident_loss(y_true, y_pred):
 	_y = tf.stop_gradient(y)
 	_h = tf.stop_gradient(h)
 	#
-	Y = tf.pow(tf.sign(w)     - y0, 2) * (0+yh) * _h
-	H = tf.pow(tf.sign(w*_y)  - y1, 2) * (1-yh)
+	Y = tf.pow(tf.sign(w)     - y0, 2) * _h#(0+yh) * _h
+	H = tf.pow(tf.sign(w*_y)  - y1, 2) *  1#(1-yh)
 	#
 	return tf.reduce_mean(Y) + tf.reduce_mean(H)
 
@@ -68,6 +68,8 @@ def custom_confident_loss(y_true, y_pred):
 from données import binance_btcusdt_15m, bitget_btcusdt_1H, bitget_btcusdt_15m, eurousdt, CAC_40_Données_Historiques
 
 df, Close, la_Date = binance_btcusdt_15m()
+
+df = df[1:].reset_index()
 
 #	Là ou c'est = 0
 print(df[['Close_change', 'Volume_change', 'macd_change']][(df[['Close_change', 'Volume_change', 'macd_change']] == 0).any(axis=1)])
@@ -83,7 +85,7 @@ N = 32
 
 MAX_I0 = 128
 MAX_I1 = 4
-DEPART = N*MAX_I0*MAX_I1
+DEPART = (1+N)*MAX_I0*MAX_I1
 
 print(f'DEPART={DEPART}')
 
@@ -225,31 +227,40 @@ def entrées_un_model(params:list):
 					ecrireI(co, I0)
 					ecrireI(co, I1)
 	#
-	system("./creation_de_données")
+	status = system("./creation_de_données")
+	print(f'status = {status}')
 	#
-	_T = (len(df) - DEPART)
-	_len = _T*N*(Informations*Expertises)
 	ret_train = []
 	ret_test  = []
 	for m in range(len(params)):
 		with open(f'X_bloques_par_mdl_{m}_train', 'rb') as co:
+			_T = (len(df) - DEPART - VALIDATION)
+			_len = _T*N*(Informations*Expertises)
+			#
 			bins = co.read()
 			arr = st.unpack('f'*_len, bins)
 			arr = np.array(arr).reshape((_T, Informations*Expertises, N))
 			ret_train += [arr]
+		system(f'rm X_bloques_par_mdl_{m}_train')
 		with open(f'X_bloques_par_mdl_{m}_test', 'rb') as co:
+			_T = VALIDATION
+			_len = _T*N*(Informations*Expertises)
+			#
 			bins = co.read()
 			arr = st.unpack('f'*_len, bins)
 			arr = np.array(arr).reshape((_T, Informations*Expertises, N))
 			ret_test += [arr]
+		system(f'rm X_bloques_par_mdl_{m}_test')
 	#
+	print("Données écrites")
 	return ret_train, ret_test
 
 ######################################################
 
 def sorties_un_model():
-	ret_train = np.array( list(df['Close_change'][DEPART+1:T-VALIDATION+1])        )
-	ret_test  = np.array( list(df['Close_change'][         T-VALIDATION+1:T])+[0.0])
+	T = len(df)
+	ret_train = np.array( list(df['Close_change'][DEPART+1:T-VALIDATION+1])        ).reshape((T-DEPART-VALIDATION,1,))
+	ret_test  = np.array( list(df['Close_change'][         T-VALIDATION+1:T])+[0.0]).reshape((VALIDATION,1))
 	return ret_train, ret_test
 
 ######################################################
@@ -324,22 +335,22 @@ def cree_le_modèle(p:Parametres):
 	return Sequential([
 		Input((Informations*Expertises, N)),
 		#
-		Conv1D(16, 3, activation=activ0),	#32-2 = 30
-		MaxPooling1D(pool_size=3),			#30/3 = 10
-		Dropout(dropout0),
+		#Conv1D(16, 3, activation=activ0),	#32-2 = 30
+		#MaxPooling1D(pool_size=3),			#30/3 = 10
+		#Dropout(dropout0),
 		#
-		Conv1D(16, 3, activation=activ1),	#10-2 = 8
-		Dropout(dropout1),
+		#Conv1D(16, 3, activation=activ1),	#10-2 = 8
+		#Dropout(dropout1),
 		#
 		Flatten(),
 		#
 		#DenseDropConnect()
-		Dense(64, activation=activ2),
-		Dropout(dropout2),
+		#Dense(64, activation=activ2),
+		#Dropout(dropout2),
 		#x = x + Dense(128)(x)
 		#x = x + Dense(128)(x)
-		Dense(32, activation=activ3),
-		Dropout(dropout3),
+		#Dense(32, activation=activ3),
+		#Dropout(dropout3),
 		#
 		Dense(SORTIES)
 	])
@@ -367,16 +378,20 @@ for année in range(ANNEES:=10):
 	udm = Union_des_Modèles(population)
 	udm.model.compile(optimizer=Adam(learning_rate=1e-5), loss=custom_confident_loss)
 	#
-	print(pop_X_train[0].shape, pop_Y_train[0].shape)
-	loss, accuracy = udm.model.evaluate(pop_X_test, pop_Y_test)
-	print(loss, accuracy)
+	print(pop_X_train[0][0])
+	#
+	print(pop_X_train[0].shape, Y_____train.shape)
+	loss = udm.model.evaluate(pop_X_test, Y_____test)
+	print(loss)
+	pred = udm.model.predict(pop_X_test)
+	print(pred)
 	#
 	history.append(udm.model.fit(
-		pop_X_train, pop_Y_train,
+		pop_X_train, Y_____train,
 		epochs=10, batch_size=128,
-		validation_data=(X_test,Y_test)
+		validation_data=(pop_X_test,Y_____test)
 	))
-	score = list(enumerate(udm.model.evaluate(population, pop_X_test, pop_Y_test).numpy()))
+	score = list(enumerate(udm.model.evaluate(population, pop_X_test, Y_____test).numpy()))
 	print(scores)
 	#
 	if (année != ANNEES-1):
