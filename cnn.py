@@ -101,10 +101,10 @@ if __name__ == "__main__":
 	#
 	#x = Dropout(0.10)(x)
 	#
-	#
-	#x = Conv2D(32, (3,3))(x)	#8*10 -> 6*8
+	#Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose,
+	x = Conv2D(32, (3,3))(x)	#8*10 -> 6*8
 	#x = Conv1D(32, 3)(x)	#8 -> 6
-	#x = MaxPooling2D((2,2))(x)	#6*8  -> 3*4
+	x = MaxPooling2D((2,2))(x)	#6*8  -> 3*4
 	#x = Dropout(0.10)(x)
 	#
 	#x = Conv1D(32, 3)(x)		#7 -> 5
@@ -113,9 +113,9 @@ if __name__ == "__main__":
 	#
 	x = Flatten()(x)
 	#
-	M = 16
+"""	M = 16
 	x = Dense(M)(x)
-	x = x + ffn(M, M*2)(x)
+	x = x + ffn(M, M*2)(x)"""
 	#
 	R = 32
 	x = Dense(R)(x)
