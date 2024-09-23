@@ -9,7 +9,8 @@ from tensorflow.keras.models import Model, Sequential, load_model
 from keras.saving import register_keras_serializable
 #
 from keras import backend as K
-from tensorflow.keras.layers import Input, Dropout, Flatten, Permute, Reshape, Lambda
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Input, Dropout, Flatten, Permute, Reshape, Lambda, Concatenate
 from tensorflow.keras.layers import Dense, Activation, Multiply
 from tensorflow.keras.layers import Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose, MaxPooling1D, AveragePooling1D
 from tensorflow.keras.layers import Conv2D, SeparableConv2D, DepthwiseConv2D, Conv2DTranspose, MaxPooling2D, AveragePooling2D
@@ -34,6 +35,10 @@ import struct as st
 def t2d(x): return tf.transpose(x, perm=[0, 2, 1])
 @register_keras_serializable()
 def tos(input_shape): return (input_shape[0], input_shape[2], input_shape[1])
+
+@register_keras_serializable()
+class GaussianActivation(Layer):
+	def call(self, x): return tf.exp(-tf.square(x) * 5)
 
 def mul(l):
 	a = 1
@@ -95,32 +100,37 @@ def ffn(M, N):
 if __name__ == "__main__":
 	entree = Input((N, nb_expertises))#Input((nb_expertises, N))
 	x = entree
-	x = Reshape((N,nb_expertises,1) )(x)
-	x = Dense(20, activation='sigmoid')(x)
-	x = Reshape((N,nb_expertises,20))(x)
+	#x = Reshape((N,nb_expertises,1) )(x)
+	#x = Dense(10, activation='sigmoid')(x)
+	#x = Reshape((N,nb_expertises,N,20))(x)
 	#
 	#x = Dropout(0.10)(x)
 	#
 	#Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose,
-	x = Conv2D(32, (3,3))(x)	#8*10 -> 6*8
-	#x = Conv1D(32, 3)(x)	#8 -> 6
-	x = MaxPooling2D((2,2))(x)	#6*8  -> 3*4
+	#x = Conv2D(32, (5,5))(x)	#8*10 -> 6*8
+	x = Conv1D(32, 3)(x)		#8 -> 6
+	x = MaxPooling1D(2)(x)		#6->3
 	#x = Dropout(0.10)(x)
 	#
 	#x = Conv1D(32, 3)(x)		#7 -> 5
 	#x = AveragePooling1D(2)(x)	#10 -> 5
 	#x = Dropout(0.10)(x)
 	#
-	x = Flatten()(x)
+	x = Flatten()(x);
+	x = Dropout(0.50)(x);
 	#
-"""	M = 16
+	"""	M = 16
 	x = Dense(M)(x)
 	x = x + ffn(M, M*2)(x)"""
 	#
-	R = 32
+	"""R = 32
 	x = Dense(R)(x)
-	x = ffn(R, R*2)(x)
-	#
+	#x = ffn(R, R*2)(x)
+	ff = Dense(R*2, activation='relu')(x)
+	x  = Dense(R)( Concatenate()([x,ff]) )
+	#"""
+	x = Dense(128)(x)
+	x = GaussianActivation()(x)
 	x = Dense(SORTIES)(x)
 
 	model = Model(entree, x)
