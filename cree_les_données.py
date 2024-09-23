@@ -79,17 +79,25 @@ I = 'OUnix','CUnix','ODate','CDate','Symbol','Open','High','Low','Close','qaV','
 
 VALIDATION = 2048
 
-Expertises = [
+"""Expertises = [
 	[60*(df['Close']/df['Close'].ewm(com=5   ).mean()-1),	(1,        ),],	#0
 	[40*(df['Close']/df['Close'].ewm(com=25  ).mean()-1),	(1,8       ),],	#1
 	[20*(df['Close']/df['Close'].ewm(com=250 ).mean()-1),	(1,8,64,   ),],	#2
-	#[10*(df['Close']/df['Close'].ewm(com=1000).mean()-1),	(1,8,64,256),],	#3
+	[10*(df['Close']/df['Close'].ewm(com=1000).mean()-1),	(1,8,64,256),],	#3
 	#
 	[ .2*(df['trades']/df['trades'].ewm(com=5   ).mean()),	(1,8       ),],	#4
 	[ .1*(df['trades']/df['trades'].ewm(com=100 ).mean()),	(1,8,64    ),],	#5
-	#[ .1*(df['trades']/df['trades'].ewm(com=1000).mean()),	(1,8,64,256),],	#6
+	[ .1*(df['trades']/df['trades'].ewm(com=1000).mean()),	(1,8,64,256),],	#6
+]"""
+Expertises = [
+	[20*(df['Close']/df['Close'].ewm(com=250   ).mean()-1),	(1,        ),],	#0
+	#[60*(df['Close']/df['Close'].ewm(com=5   ).mean()-1),	(1,4       ),],	#1
 ]
 for i in range(len(Expertises)): Expertises[i][0] = list(Expertises[i][0])
+
+#montrer(Expertises[6], 3, N)
+nb_expertises = sum([1 for _,e in Expertises for i in e])
+print(f"Expertises : {nb_expertises}")
 
 if __name__ == "__main__":
 	for l,_ in Expertises: plt.plot(l)
@@ -100,11 +108,7 @@ if __name__ == "__main__":
 	for i,(l,_) in enumerate(Expertises): ax[i//A][i%A].plot(l)
 	plt.show()
 
-N = 32
-
-#montrer(Expertises[6], 3, N)
-nb_expertises = sum([1 for _,e in Expertises for i in e])
-print(f"Expertises : {nb_expertises}")
+N = 8#16#32
 
 MAX_I  = max([I for _,Is in Expertises for I in Is])
 T      = len(df)
@@ -122,18 +126,32 @@ SORTIES = 2
 if __name__ == "__main__":
 	print("Création des données ...")
 
-	X = np.zeros((T-DEPART, nb_expertises, N))
+	#X = np.zeros((T-DEPART, nb_expertises, N))
+	X = np.zeros((T-DEPART, N, nb_expertises))
 
 	for t in tqdm(range(DEPART,T), desc="Création des données : ", ncols=100, bar_format="{l_bar}{bar:20}{r_bar}", colour="green"):#range(DEPART, T):
 		ie = 0
+		#	Transpose (infos*expertises) <-> N (car conv1d prend les choses a l'envers)
 		for l,Is in Expertises:
 			for I in Is:
 				for n in range(N):
-					X[t-DEPART][ie][N-n-1] = l[t - n*I]
+					#X[t-DEPART][ie][N-n-1] = l[t - n*I]
+					X[t-DEPART][N-n-1][ie] = l[t - n*I]
 				ie += 1
 
 	#X = np.array([[[l[t-n*I] for n in range(N)] for l,Is in Expertises for I in Is] for t in range(DEPART, T)])
 	Y = np.array([[100*(df['Close'][t+1]/df['Close'][t]-1 if t!=T-1 else 0.0)] for t in range(DEPART, T)])
+
+	#	================== Montrer ================
+
+	plt.imshow(X[0]); plt.show()
+
+	A = int(1+(nb_expertises)**.5)
+	fig, ax = plt.subplots(A,A)
+	for i in range(nb_expertises): ax[i//A][i%A].plot([X[0][n][i] for n in range(N)])
+	plt.show()
+
+	#	===========================================
 
 	print("Séparation de train et test ...")
 	X_train, Y_train = X[:-VALIDATION], Y[:-VALIDATION]

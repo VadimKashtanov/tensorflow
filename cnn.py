@@ -11,7 +11,8 @@ from keras.saving import register_keras_serializable
 from keras import backend as K
 from tensorflow.keras.layers import Input, Dropout, Flatten, Permute, Reshape, Lambda
 from tensorflow.keras.layers import Dense, Activation, Multiply
-from tensorflow.keras.layers import Conv1D, MaxPooling1D, AveragePooling1D
+from tensorflow.keras.layers import Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose, MaxPooling1D, AveragePooling1D
+from tensorflow.keras.layers import Conv2D, SeparableConv2D, DepthwiseConv2D, Conv2DTranspose, MaxPooling2D, AveragePooling2D
 from tensorflow.keras.layers import LayerNormalization
 #
 from keras_nlp.layers import PositionEmbedding, TransformerEncoder, TransformerDecoder
@@ -62,8 +63,8 @@ def custom_loss(y_true, y_pred):
 	_y = tf.stop_gradient(y)
 	_h = tf.stop_gradient(h)
 	#
-	Y = tf.pow(tf.sign(w)     - y0, 2)# * _h #(0+yh) * _h
-	H = 0*tf.pow(tf.sign(w*_y)  - y1, 2)# *  1 #(1-yh)
+	Y = tf.pow(tf.sign(w)     - y0, 2) * _h #(0+yh) * _h
+	H = tf.pow(tf.sign(w*_y)  - y1, 2) *  1 #(1-yh)
 	#
 	return (tf.reduce_mean(Y) + tf.reduce_mean(H))/2
 
@@ -71,9 +72,9 @@ def custom_loss(y_true, y_pred):
 
 from cree_les_données import df, VALIDATION, N, nb_expertises, T, DEPART, SORTIES
 
-X_train = (T-DEPART-VALIDATION, nb_expertises, N)
+X_train = (T-DEPART-VALIDATION, N, nb_expertises)#(T-DEPART-VALIDATION, nb_expertises, N)
 Y_train = (T-DEPART-VALIDATION, 1)
-X_test  = (         VALIDATION, nb_expertises, N)
+X_test  = (         VALIDATION, N, nb_expertises)#(         VALIDATION, nb_expertises, N)
 Y_test  = (         VALIDATION, 1)
 
 for la_liste in 'X_train', 'Y_train', 'X_test', 'Y_test':
@@ -83,29 +84,43 @@ for la_liste in 'X_train', 'Y_train', 'X_test', 'Y_test':
 
 #	============================================================	#
 
+def ffn(M, N):
+	return Sequential([
+		Dropout(0.20),
+		Dense(N, activation='relu'),
+		Dropout(0.20),
+		Dense(M),
+	])
+
 if __name__ == "__main__":
-	entree = Input((nb_expertises, N))
+	entree = Input((N, nb_expertises))#Input((nb_expertises, N))
 	x = entree
+	x = Reshape((N,nb_expertises,1) )(x)
+	x = Dense(20, activation='sigmoid')(x)
+	x = Reshape((N,nb_expertises,20))(x)
+	#
+	#x = Dropout(0.10)(x)
 	#
 	#
-	x = Lambda(t2d, output_shape=tos)(x)
-	x = Conv1D(128, 5)(x)		#32 -> 28
-	x = AveragePooling1D(2)(x)	#28 -> 14
-	x = Lambda(t2d, output_shape=tos)(x)
-	x = Dropout(0.20)(x)
+	#x = Conv2D(32, (3,3))(x)	#8*10 -> 6*8
+	#x = Conv1D(32, 3)(x)	#8 -> 6
+	#x = MaxPooling2D((2,2))(x)	#6*8  -> 3*4
+	#x = Dropout(0.10)(x)
 	#
-	#
-	x = Lambda(t2d, output_shape=tos)(x)
-	x = Conv1D(32, 3)(x)		#14 -> 12
-	x = AveragePooling1D(2)(x)	#12 -> 6
-	x = Lambda(t2d, output_shape=tos)(x)
-	x = Dropout(0.20)(x)
-	#
+	#x = Conv1D(32, 3)(x)		#7 -> 5
+	#x = AveragePooling1D(2)(x)	#10 -> 5
+	#x = Dropout(0.10)(x)
 	#
 	x = Flatten()(x)
 	#
-	x = Dense(256, activation='relu')(x); x = Dropout(0.50)(x)
-	x = Dense(64)(x); x = Dropout(0.30)(x)
+	M = 16
+	x = Dense(M)(x)
+	x = x + ffn(M, M*2)(x)
+	#
+	R = 32
+	x = Dense(R)(x)
+	x = ffn(R, R*2)(x)
+	#
 	x = Dense(SORTIES)(x)
 
 	model = Model(entree, x)
@@ -118,7 +133,7 @@ if __name__ == "__main__":
 	meilleur_validation = ModelCheckpoint('meilleur_model.h5.keras', monitor='val_loss', save_best_only=True)
 	meilleur_train      = ModelCheckpoint('dernier__model.h5.keras', monitor='loss'    , save_best_only=True)
 
-	history = model.fit(X_train, Y_train, epochs=50, batch_size=128, validation_data=(X_test,Y_test), shuffle=True,
+	history = model.fit(X_train, Y_train, epochs=100, batch_size=256, validation_data=(X_test,Y_test), shuffle=True,
 		callbacks=[meilleur_validation, meilleur_train]
 	)
 
