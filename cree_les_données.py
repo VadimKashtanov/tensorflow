@@ -28,35 +28,10 @@ from tqdm import tqdm
 import time
 import struct as st
 
-def transpose_2d(x): return K.permute_dimensions(x, (0, 2, 1))
-def transpose_output_shape(input_shape): return (input_shape[0], input_shape[2], input_shape[1])
-
-tf_logistique = lambda x: 1/(1+tf.exp(-         x ))
-np_logistique = lambda x: 1/(1+np.exp(-np.array(x)))
-logistique    = lambda x: 1/(1+np.exp(-         x ))
-
 def ema(l,K):
 	e = [l[0]]
-	for a in l[1:]: e.append(e[-1]*(1-K) + K*a)
-	return e
-
-def custom_loss(y_true, y_pred):
-	y0 = y_pred[:, 0:1]
-	y1 = y_pred[:, 1:2]
-	#
-	w   = y_true[:, 0:1]
-	#yh = y_true[:, 1:2]
-	#
-	y = tf.tanh      (y0)
-	h = tf_logistique(y1)
-	#
-	_y = tf.stop_gradient(y)
-	_h = tf.stop_gradient(h)
-	#
-	Y = tf.pow(tf.sign(w)     - y0, 2) * _h #(0+yh) * _h
-	H = tf.pow(tf.sign(w*_y)  - y1, 2) *  1 #(1-yh)
-	#
-	return tf.reduce_mean(Y) + tf.reduce_mean(H)
+	for a in l[1:]: e.append(e[-1]*(1-1/K) + a/K)
+	return np.array(e)
 
 #	======================================================================
 
@@ -75,43 +50,65 @@ if __name__ == "__main__":
 else:
 	df, Close, la_Date = binance_btcusdt_15m()
 
-I = 'OUnix','CUnix','ODate','CDate','Symbol','Open','High','Low','Close','qaV','trades','btcVol','usdtVol'
+infos = 'OUnix','CUnix','ODate','CDate','Symbol','Open','High','Low','Close','qaV','trades','btcVol','usdtVol'
 
 VALIDATION = 2048
 
 """Expertises = [
-	[60*(df['Close']/df['Close'].ewm(com=5   ).mean()-1),	(1,        ),],	#0
-	[40*(df['Close']/df['Close'].ewm(com=25  ).mean()-1),	(1,8       ),],	#1
-	[20*(df['Close']/df['Close'].ewm(com=250 ).mean()-1),	(1,8,64,   ),],	#2
-	[10*(df['Close']/df['Close'].ewm(com=1000).mean()-1),	(1,8,64,256),],	#3
+	[60*(df['Close']/df['Close'].ewm(com=5   ).mean()-1),	(1,        ),],
+	[40*(df['Close']/df['Close'].ewm(com=25  ).mean()-1),	(1,8       ),],
+	[20*(df['Close']/df['Close'].ewm(com=250 ).mean()-1),	(1,8,64,   ),],
+	[10*(df['Close']/df['Close'].ewm(com=1000).mean()-1),	(1,8,64,256),],
 	#
-	[ .2*(df['trades']/df['trades'].ewm(com=5   ).mean()),	(1,8       ),],	#4
-	[ .1*(df['trades']/df['trades'].ewm(com=100 ).mean()),	(1,8,64    ),],	#5
-	[ .1*(df['trades']/df['trades'].ewm(com=1000).mean()),	(1,8,64,256),],	#6
+	[ .2*(df['trades']/df['trades'].ewm(com=5   ).mean()),	(1,8       ),],
+	[ .1*(df['trades']/df['trades'].ewm(com=100 ).mean()),	(1,8,64    ),],
+	[ .1*(df['trades']/df['trades'].ewm(com=1000).mean()),	(1,8,64,256),],
 ]"""
+
+contextualiser = lambda arr, _ema: (arr - _ema)/(arr + _ema)
+
+N = 8
+MAX_I    = 8
+MAX_ROLL = N*MAX_I
+
 Expertises = [
-	[20*(df['Close']/df['Close'].ewm(com=250   ).mean()-1),	(1,        ),],	#0
-	#[60*(df['Close']/df['Close'].ewm(com=5   ).mean()-1),	(1,4       ),],	#1
+	#[df['Close']/ema(df['Close'], K=1  ) -1,	(1,  ),],
+	[100*(df['Close']/ema(df['Close'], K=1.5  ) -1),	(1,  ),],
+	[100*(df['Close']/ema(df['Close'], K=2  ) -1),	(1,  ),],
+	[100*(df['Close']/ema(df['Close'], K=5  ) -1),	(1,  ),],
+	[100*(df['Close']/ema(df['Close'], K=10  ) -1),	(1,  ),],
+	#[contextualiser(df['Close'], np.roll(ema(df['Close'], K=1 ), +N*1)), (1,)],
+	#[contextualiser(df['Close'], np.roll(ema(df['Close'], K=25), +N*4)), (4,)],
+	#[20*(df['Close']/df['Close'].ewm(com=250 ).mean()-1),	(64, ),],
+	#[10*(df['Close']/df['Close'].ewm(com=1000).mean()-1),	(256,),],
 ]
-for i in range(len(Expertises)): Expertises[i][0] = list(Expertises[i][0])
+for i in range(len(Expertises)): Expertises[i][0] = list(Expertises[i][0])[MAX_ROLL:]
 
 #montrer(Expertises[6], 3, N)
 nb_expertises = sum([1 for _,e in Expertises for i in e])
 print(f"Expertises : {nb_expertises}")
 
 if __name__ == "__main__":
-	for l,_ in Expertises: plt.plot(l)
+	fig,ax = plt.subplots(2,2)
+	L = 300
+	f = lambda x: x*(x>0)
+	for j,(l,_) in enumerate(Expertises): ax[0][0].plot(l[-L:], label=f'{j}')
+	for j,(l,_) in enumerate(Expertises): ax[0][1].plot(np.convolve(l[-L:], np.array([-1, -1, 3, 0, 0]), "same"), label=f'{j}')
+	for j,(l,_) in enumerate(Expertises): ax[1][1].plot(f(np.convolve(l[-L:], np.array([-1, -1, 3, 0, 0]), "same")), label=f'{j}')
+	ax[0][0].legend()
+	ax[1][0].plot(np.array(df['Close'][MAX_ROLL:][-L:]))
+	for i in range(2):
+		for j in range(2):
+			ax[i][j].grid(True)
 	plt.show()
+	#exit(0)
 	#
 	A = int(1+(len(Expertises))**.5)
 	fig, ax = plt.subplots(A,A)
 	for i,(l,_) in enumerate(Expertises): ax[i//A][i%A].plot(l)
 	plt.show()
 
-N = 8#16#32
-
-MAX_I  = max([I for _,Is in Expertises for I in Is])
-T      = len(df)
+T      = len(Expertises[0][0])
 DEPART = N * MAX_I
 
 assert T-DEPART > VALIDATION
