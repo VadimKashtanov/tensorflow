@@ -74,10 +74,18 @@ def custom_loss(y_true, y_pred):
 	#Y = tf.pow(tf.sign(w)-y0, 2)/2 * tf.pow(w, 2)#tf.pow(w - y0, 2)# * tf.abs(w)# * (1 - tf.exp(-l*l))
 	#
 	#Y = -( tf_logistique(tf.sign(w))*tf.math.log(tf_logistique(y)) + (1-tf_logistique(tf.sign(w)))*tf.math.log(1-tf_logistique(y)))
-	Y = tf.pow(w - y0, 2)/2
+	Y = tf.pow(tf.sign(w) - y0, 2)/2
 	#
 	return (tf.reduce_mean(Y))# + tf.reduce_mean(H))/2
 
+
+#	Position maximale : 5 unitées
+#
+#		En gros c'est une perte si ça tombe jamais en dessous/dessus de la cible.
+#		C'est des position court terme, mais pas de 1 unitées (comme j'ai toujours fais)
+#
+#	J'avais deja pensé ça y a 1 ans, mais je l'ai pas fais.
+#
 #	============================================================	#
 
 from cree_les_données import df, VALIDATION, N, nb_expertises, T, DEPART, SORTIES
@@ -119,27 +127,23 @@ def ffn(M, N):
 	])
 
 if __name__ == "__main__":
+	#
+	#	Faire le systeme de trade ouvert 5 (ou 4) unitées de temps
+	#
 	entree = Input((N, nb_expertises))#Input((nb_expertises, N))
 	x = entree
 	#
 	#x = Dropout(0.10)(x)
 	#
 	#Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose,
-	#x = Conv1D(64, 7)(x)	#8 -> 4
+	x = Conv1D(64, 7)(x)	#8 -> 4
 	#x = x*x
 	#x = AveragePooling1D(2)(x)		#8 -> 4
-	#
-	#x = concatenate([x, Activation('relu')(x)])
-	#x = Activation('relu')(x)
 	#
 	x = Flatten()(x)
 	x = Dropout(0.30)(x)
 	#
-	#x = LSTM(64, input_shape=(7,), return_sequences=False)(x)
-	#x = Dense(256, activation='relu')(x); x = Dropout(0.10)(x)
-	#x = Dense( 64, activation='relu')(x); x = Dropout(0.10)(x)
-	#
-	#x = x * Dense(256, activation='tanh')(x)
+	x = Dense(128, activation='relu')(x); x = Dropout(0.10)(x)
 	#
 	x = Dense(SORTIES)(x)
 
