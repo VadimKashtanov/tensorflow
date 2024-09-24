@@ -73,12 +73,11 @@ MAX_ROLL = N*MAX_I
 
 Expertises = [
 	#[df['Close']/ema(df['Close'], K=1  ) -1,	(1,  ),],
-	[100*(df['Close']/ema(df['Close'], K=1.5  ) -1),	(1,  ),],
-	[100*(df['Close']/ema(df['Close'], K=2  ) -1),	(1,  ),],
-	[100*(df['Close']/ema(df['Close'], K=5  ) -1),	(1,  ),],
-	[100*(df['Close']/ema(df['Close'], K=10  ) -1),	(1,  ),],
-	#[contextualiser(df['Close'], np.roll(ema(df['Close'], K=1 ), +N*1)), (1,)],
-	#[contextualiser(df['Close'], np.roll(ema(df['Close'], K=25), +N*4)), (4,)],
+	#[100*(df['Close']/ema(df['Close'], K=1.5  ) -1),	(1,  ),],
+	[1000*(df['Close']/ema(df['Close'], K=2  ) -1),	(1,  ),],
+	#[100*(df['Close']/ema(df['Close'], K=5  ) -1),	(1,  ),],
+	#[100*(df['Close']/ema(df['Close'], K=10  ) -1),	(1,  ),],
+
 	#[20*(df['Close']/df['Close'].ewm(com=250 ).mean()-1),	(64, ),],
 	#[10*(df['Close']/df['Close'].ewm(com=1000).mean()-1),	(256,),],
 ]

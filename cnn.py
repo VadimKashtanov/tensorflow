@@ -68,9 +68,9 @@ def custom_loss(y_true, y_pred):
 	#H = tf.pow(tf.sign(w*_y)  - y1, 2 + 2*tf.whitch(tf.sign(w*_y) > 0)) *  1  #(1-yh)
 	#
 	#Y = tf.pow(tf.sign(w) - y0, 2) * tf.abs(w) * h + tf.pow(1 - h, 2)
-	l = w*tf.sign(y)
-	l = l / tf.reduce_mean(l)
-	Y = tf.pow(w - y0, 2) * tf.abs(w) * (1 - tf.exp(-l*l))
+	#l = tf.pow(w - tf.stop_gradient(y0), 2)
+	# = l / tf.reduce_mean(l)
+	Y = tf.pow(w-y0, 2)/2#*tf.abs(w)#tf.pow(w - y0, 2)# * tf.abs(w)# * (1 - tf.exp(-l*l))
 	#
 	return (tf.reduce_mean(Y))# + tf.reduce_mean(H))/2
 
@@ -124,24 +124,22 @@ if __name__ == "__main__":
 	x = Conv1D(32, 5)(x)	#8 -> 4
 	x = AveragePooling1D(2)(x)		#8 -> 4
 	#
-	x = concatenate([x, Activation('relu')(x)])
+	#x = concatenate([x, Activation('relu')(x)])
+	#x = Activation('relu')(x)
 	#
 	x = Flatten()(x)
 	#x = Dropout(0.30)(x)
 	#
-	x = Dense(256, activation='sigmoid')(x)#; x = Dropout(0.30)(x)
+	x = Dense(128, activation='gelu')(x); x = Dropout(0.50)(x)
+	x = Dense( 32, activation='gelu')(x); x = Dropout(0.40)(x)
 	#
 	#x = x * Dense(256, activation='tanh')(x)
 	#
-	"""x = concatenate([
-		Dense(1)(x),
-		Dense(1)(Lambda(lambda x: tf.stop_gradient(x))(x))
-	])"""
 	x = Dense(SORTIES)(x)
 
 	model = Model(entree, x)
+	#model.compile(optimizer=SGD(learning_rate=1e-6), loss=custom_loss)
 	model.compile(optimizer=Adam(learning_rate=1e-5), loss=custom_loss)
-	#model.compile(optimizer=RMSprop(learning_rate=1e-4), loss=custom_loss)
 	model.summary()
 
 	############################ Entrainnement #########################
@@ -152,7 +150,7 @@ if __name__ == "__main__":
 	#
 	bruit               = Bruit(X_train, Y_train)
 
-	history = model.fit(X_train, Y_train, epochs=100, batch_size=256, validation_data=(X_test,Y_test), shuffle=True,
+	history = model.fit(X_train, Y_train, epochs=300, batch_size=512, validation_data=(X_test,Y_test), shuffle=True,
 		callbacks=[
 			meilleur_validation, meilleur_train,
 			#bruit
@@ -163,6 +161,24 @@ if __name__ == "__main__":
 	plt.plot(history.history['val_loss'], label='Test ')
 	plt.legend()
 	plt.show()
+
+	print("======================================================================")
+
+	def display_layer_outputs(model, input_data):
+		# Créer un modèle qui retourne les sorties de chaque couche
+		layer_outputs = [layer.output for layer in model.layers]
+		activation_model = Model(inputs=model.input, outputs=layer_outputs)
+
+		# Obtenir les valeurs de chaque couche
+		activations = activation_model.predict(input_data)
+
+		# Afficher les valeurs de chaque couche
+		for layer_name, activation in zip([layer.name for layer in model.layers], activations):
+			print(f"Layer: {layer_name}, Activation shape: {activation.shape}, Activation values:\n{activation}")
+
+	display_layer_outputs(model, X_train[0:1])
+
+	print("======================================================================")
 
 	for layer in model.layers:
 		if 'conv' in layer.name:
