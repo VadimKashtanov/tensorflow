@@ -4,7 +4,7 @@ import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 #
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau, Callback
 from tensorflow.keras.models import Model, Sequential, load_model
 from keras.saving import register_keras_serializable
 #
@@ -14,11 +14,11 @@ from tensorflow.keras.layers import Input, Dropout, Flatten, Permute, Reshape, L
 from tensorflow.keras.layers import Dense, Activation, Multiply
 from tensorflow.keras.layers import Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose, MaxPooling1D, AveragePooling1D
 from tensorflow.keras.layers import Conv2D, SeparableConv2D, DepthwiseConv2D, Conv2DTranspose, MaxPooling2D, AveragePooling2D
-from tensorflow.keras.layers import LayerNormalization
+from tensorflow.keras.layers import LayerNormalization, BatchNormalization
 #
 from keras_nlp.layers import PositionEmbedding, TransformerEncoder, TransformerDecoder
 #
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 from tensorflow.keras.regularizers import l2
 #
 from tensorflow.keras.utils import Progbar
@@ -89,6 +89,22 @@ for la_liste in 'X_train', 'Y_train', 'X_test', 'Y_test':
 
 #	============================================================	#
 
+class Bruit(Callback):
+	def __init__(self, data, labels):
+		super(Bruit, self).__init__()
+		self.data = data
+		self.labels = labels
+
+	def on_epoch_begin(self, epoch, logs=None):
+		self.data = X_train + np.random.normal(0, 0.01, self.data.shape)
+		print(f"Époque {epoch+1}: Données modifiées.")
+
+	def on_batch_begin(self, batch, logs=None):
+		# Optionnel : Modifie les données batch par batch
+		pass
+
+#	============================================================	#
+
 def ffn(M, N):
 	return Sequential([
 		Dropout(0.20),
@@ -100,41 +116,22 @@ def ffn(M, N):
 if __name__ == "__main__":
 	entree = Input((N, nb_expertises))#Input((nb_expertises, N))
 	x = entree
-	#x = Reshape((N,nb_expertises,1) )(x)
-	#x = Dense(10, activation='sigmoid')(x)
-	#x = Reshape((N,nb_expertises,N,20))(x)
 	#
 	#x = Dropout(0.10)(x)
 	#
 	#Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose,
-	#x = Conv2D(32, (5,5))(x)	#8*10 -> 6*8
-	x = Conv1D(32, 3)(x)		#8 -> 6
-	x = MaxPooling1D(2)(x)		#6->3
-	#x = Dropout(0.10)(x)
+	x = x + Conv1D(16, 3, "same")(x)	#8 -> 8
+	x = AveragePooling1D(2)(x)			#8 -> 4
 	#
-	#x = Conv1D(32, 3)(x)		#7 -> 5
-	#x = AveragePooling1D(2)(x)	#10 -> 5
-	#x = Dropout(0.10)(x)
+	x = Flatten()(x)
+	x = Dropout(0.30)(x)
 	#
-	x = Flatten()(x);
-	x = Dropout(0.50)(x);
-	#
-	"""	M = 16
-	x = Dense(M)(x)
-	x = x + ffn(M, M*2)(x)"""
-	#
-	"""R = 32
-	x = Dense(R)(x)
-	#x = ffn(R, R*2)(x)
-	ff = Dense(R*2, activation='relu')(x)
-	x  = Dense(R)( Concatenate()([x,ff]) )
-	#"""
-	x = Dense(128)(x)
-	x = GaussianActivation()(x)
+	x = Dense(128, activation='sigmoid')(x); x = Dropout(0.30)(x)
 	x = Dense(SORTIES)(x)
 
 	model = Model(entree, x)
-	model.compile(optimizer=Adam(learning_rate=1e-5), loss=custom_loss)
+	#model.compile(optimizer=Adam(learning_rate=1e-3), loss=custom_loss)
+	model.compile(optimizer=SGD(learning_rate=1e-3), loss=custom_loss)
 	model.summary()
 
 	############################ Entrainnement #########################
@@ -142,12 +139,40 @@ if __name__ == "__main__":
 	# Callbacks
 	meilleur_validation = ModelCheckpoint('meilleur_model.h5.keras', monitor='val_loss', save_best_only=True)
 	meilleur_train      = ModelCheckpoint('dernier__model.h5.keras', monitor='loss'    , save_best_only=True)
+	#
+	bruit               = Bruit(X_train, Y_train)
 
 	history = model.fit(X_train, Y_train, epochs=100, batch_size=256, validation_data=(X_test,Y_test), shuffle=True,
-		callbacks=[meilleur_validation, meilleur_train]
+		callbacks=[
+			meilleur_validation, meilleur_train,
+			#bruit
+		]
 	)
 
 	plt.plot(history.history['loss'    ], label='Train')
 	plt.plot(history.history['val_loss'], label='Test ')
 	plt.legend()
 	plt.show()
+
+	for layer in model.layers:
+		if 'conv' in layer.name:
+			# Obtenir les poids de la couche (les kernels sont dans layer.get_weights()[0])
+			kernels = layer.get_weights()[0]
+			
+			# Normaliser les valeurs des kernels pour les afficher correctement
+			min_val = np.min(kernels)
+			max_val = np.max(kernels)
+			kernels = (kernels - min_val) / (max_val - min_val)
+
+			# Déterminer le nombre de filtres et la taille des kernels
+			num_filters = kernels.shape[-1]
+			kernel_size = kernels.shape[0]
+
+			# Créer un plot pour afficher les filtres
+			A = int(1 + num_filters**.5)
+			fig, ax = plt.subplots(A, A)
+			
+			for i in range(num_filters):
+				for ie in range(nb_expertises):
+					ax[i//A][i%A].plot(kernels[:, ie, i])
+			plt.show()
