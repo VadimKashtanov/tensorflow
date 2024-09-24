@@ -67,7 +67,7 @@ VALIDATION = 2048
 
 contextualiser = lambda arr, _ema: (arr - _ema)/(arr + _ema)
 
-N = 8
+N = 7#8
 MAX_I    = 8
 MAX_ROLL = N*MAX_I
 

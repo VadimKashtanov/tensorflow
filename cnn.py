@@ -10,6 +10,7 @@ from keras.saving import register_keras_serializable
 #
 from keras import backend as K
 from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import LSTM
 from tensorflow.keras.layers import Input, Dropout, Flatten, Permute, Reshape, Lambda, concatenate
 from tensorflow.keras.layers import Dense, Activation, Multiply
 from tensorflow.keras.layers import Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose, MaxPooling1D, AveragePooling1D
@@ -70,7 +71,10 @@ def custom_loss(y_true, y_pred):
 	#Y = tf.pow(tf.sign(w) - y0, 2) * tf.abs(w) * h + tf.pow(1 - h, 2)
 	#l = tf.pow(w - tf.stop_gradient(y0), 2)
 	# = l / tf.reduce_mean(l)
-	Y = tf.pow(w-y0, 2)/2#*tf.abs(w)#tf.pow(w - y0, 2)# * tf.abs(w)# * (1 - tf.exp(-l*l))
+	#Y = tf.pow(tf.sign(w)-y0, 2)/2 * tf.pow(w, 2)#tf.pow(w - y0, 2)# * tf.abs(w)# * (1 - tf.exp(-l*l))
+	#
+	#Y = -( tf_logistique(tf.sign(w))*tf.math.log(tf_logistique(y)) + (1-tf_logistique(tf.sign(w)))*tf.math.log(1-tf_logistique(y)))
+	Y = tf.pow(w - y0, 2)/2
 	#
 	return (tf.reduce_mean(Y))# + tf.reduce_mean(H))/2
 
@@ -121,17 +125,19 @@ if __name__ == "__main__":
 	#x = Dropout(0.10)(x)
 	#
 	#Conv1D, SeparableConv1D, DepthwiseConv1D, Conv1DTranspose,
-	x = Conv1D(32, 5)(x)	#8 -> 4
-	x = AveragePooling1D(2)(x)		#8 -> 4
+	#x = Conv1D(64, 7)(x)	#8 -> 4
+	#x = x*x
+	#x = AveragePooling1D(2)(x)		#8 -> 4
 	#
 	#x = concatenate([x, Activation('relu')(x)])
 	#x = Activation('relu')(x)
 	#
 	x = Flatten()(x)
-	#x = Dropout(0.30)(x)
+	x = Dropout(0.30)(x)
 	#
-	x = Dense(128, activation='gelu')(x); x = Dropout(0.50)(x)
-	x = Dense( 32, activation='gelu')(x); x = Dropout(0.40)(x)
+	#x = LSTM(64, input_shape=(7,), return_sequences=False)(x)
+	#x = Dense(256, activation='relu')(x); x = Dropout(0.10)(x)
+	#x = Dense( 64, activation='relu')(x); x = Dropout(0.10)(x)
 	#
 	#x = x * Dense(256, activation='tanh')(x)
 	#
@@ -149,11 +155,14 @@ if __name__ == "__main__":
 	meilleur_train      = ModelCheckpoint('dernier__model.h5.keras', monitor='loss'    , save_best_only=True)
 	#
 	bruit               = Bruit(X_train, Y_train)
+	#
+	#reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.0000001)
 
-	history = model.fit(X_train, Y_train, epochs=300, batch_size=512, validation_data=(X_test,Y_test), shuffle=True,
+	history = model.fit(X_train, Y_train, epochs=200, batch_size=256, validation_data=(X_test,Y_test), shuffle=True,
 		callbacks=[
 			meilleur_validation, meilleur_train,
-			#bruit
+			#bruit,
+			#reduce_lr
 		]
 	)
 
